@@ -16,9 +16,9 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  X,
-  Info,
-  ImageIcon,
+  Archive,
+  Upload,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,7 +29,9 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Progress } from '@/components/ui/progress'
 import PanoramaViewer from '@/components/panorama/panorama-viewer'
+import HotspotPopup from '@/components/panorama/hotspot-popup'
 import type { Tour, Hotspot, Scene } from '@/lib/tour-types'
 import {
   useTour,
@@ -40,61 +42,7 @@ import {
   createDemoTour,
   exportTour,
 } from '@/lib/tour-store'
-
-/* ------------------------------------------------------------------ */
-/*  Inline Hotspot Detail (for info / image / content hotspots)       */
-/* ------------------------------------------------------------------ */
-function HotspotDetail({
-  hotspot,
-  onClose,
-}: {
-  hotspot: Hotspot
-  onClose: () => void
-}) {
-  return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none p-4 animate-in fade-in-0 duration-200">
-      <div className="pointer-events-auto bg-[#1a1a1a] rounded-xl shadow-[0_8px_50px_rgba(0,0,0,0.5)] w-auto min-w-[200px] max-w-[min(90vw,32rem)] max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 relative">
-        {/* Top close button */}
-        <div className="absolute top-3 right-3 z-10">
-          <button
-            onClick={onClose}
-            className="h-8 w-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white hover:bg-black/60 transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Image -- full bleed */}
-        {hotspot.type === 'image' && hotspot.imageUrl && (
-          <div className="w-full aspect-[4/5] max-h-80 overflow-hidden bg-black flex-shrink-0">
-            <img
-              src={hotspot.imageUrl}
-              alt={hotspot.title}
-              className="w-full h-full object-contain"
-              crossOrigin="anonymous"
-            />
-          </div>
-        )}
-
-        {/* Content */}
-        <div className="p-5 pr-14 overflow-y-auto">
-          <h3 className="font-medium text-white text-base leading-snug text-balance">{hotspot.title}</h3>
-
-          {hotspot.description && (
-            <p className="text-sm text-white/60 leading-relaxed mt-2 whitespace-pre-wrap break-words">{hotspot.description}</p>
-          )}
-
-          {hotspot.type === 'content' && hotspot.content && (
-            <div
-              className="text-sm text-white/60 leading-relaxed mt-2 prose prose-sm prose-invert max-w-none break-words [&_*]:break-words"
-              dangerouslySetInnerHTML={{ __html: hotspot.content }}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
+import { exportTourAsZip, importTourFromZip } from '@/lib/tour-export'
 
 /* ------------------------------------------------------------------ */
 /*  Share Dialog                                                       */
@@ -109,6 +57,9 @@ function ShareDialog({
   tour: Tour
 }) {
   const [copied, setCopied] = useState<string | null>(null)
+  const [zipExporting, setZipExporting] = useState(false)
+  const [zipProgress, setZipProgress] = useState<{ label: string; percent: number } | null>(null)
+  const [zipImporting, setZipImporting] = useState(false)
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '/viewer'
   const embedCode = `<iframe src="${shareUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`
 
@@ -129,6 +80,54 @@ function ShareDialog({
     a.download = `${tour.name.toLowerCase().replace(/\s+/g, '-')}.json`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleExportZip = async () => {
+    setZipExporting(true)
+    setZipProgress({ label: 'Preparing...', percent: 0 })
+    try {
+      const blob = await exportTourAsZip(tour, (progress) => {
+        if (progress.phase === 'downloading') {
+          const percent = Math.round((progress.current / progress.total) * 80)
+          setZipProgress({ label: progress.label, percent })
+        } else if (progress.phase === 'packaging') {
+          setZipProgress({ label: progress.label, percent: 85 })
+        } else {
+          setZipProgress({ label: progress.label, percent: 100 })
+        }
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${tour.name.toLowerCase().replace(/\s+/g, '-')}-tour.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('ZIP export failed:', err)
+    } finally {
+      setTimeout(() => {
+        setZipExporting(false)
+        setZipProgress(null)
+      }, 1000)
+    }
+  }
+
+  const handleImportZip = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setZipImporting(true)
+    try {
+      const importedTour = await importTourFromZip(file)
+      if (importedTour) {
+        loadTour(importedTour)
+        onClose()
+      }
+    } catch (err) {
+      console.error('ZIP import failed:', err)
+    } finally {
+      setZipImporting(false)
+      e.target.value = ''
+    }
   }
 
   return (
@@ -168,10 +167,56 @@ function ShareDialog({
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Export</label>
-            <Button variant="outline" className="w-full gap-2" onClick={handleExportJson}>
-              <Download className="h-4 w-4" />
-              Download Tour as JSON
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button variant="outline" className="w-full gap-2" onClick={handleExportJson}>
+                <Download className="h-4 w-4" />
+                Download Tour as JSON
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                onClick={handleExportZip}
+                disabled={zipExporting}
+              >
+                {zipExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Archive className="h-4 w-4" />
+                )}
+                {zipExporting ? 'Exporting...' : 'Download Tour as ZIP'}
+              </Button>
+              {zipProgress && (
+                <div className="space-y-1.5">
+                  <Progress value={zipProgress.percent} className="h-1.5" />
+                  <p className="text-[11px] text-muted-foreground">{zipProgress.label}</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Import</label>
+            <div className="relative">
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                disabled={zipImporting}
+                onClick={() => document.getElementById('zip-import-input')?.click()}
+              >
+                {zipImporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                {zipImporting ? 'Importing...' : 'Import Tour from ZIP'}
+              </Button>
+              <input
+                id="zip-import-input"
+                type="file"
+                accept=".zip"
+                className="sr-only"
+                onChange={handleImportZip}
+              />
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -420,7 +465,14 @@ function ViewerPage() {
 
         {/* Hotspot detail popup */}
         {activePopup && (
-          <HotspotDetail hotspot={activePopup} onClose={() => setActivePopup(null)} />
+          <HotspotPopup
+            hotspot={activePopup}
+            onClose={() => setActivePopup(null)}
+            onNavigate={(sceneId) => {
+              setCurrentScene(sceneId)
+              setActivePopup(null)
+            }}
+          />
         )}
 
         {/* Share dialog */}
