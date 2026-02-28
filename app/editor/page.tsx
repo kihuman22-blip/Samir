@@ -89,7 +89,7 @@ function EditorPage() {
 
   // Load tour from Supabase if ?id= is present
   useEffect(() => {
-    if (tourDbId && !dbLoaded) {
+    if (tourDbId && !dbLoaded && supabase) {
       const loadFromDb = async () => {
         const { data } = await supabase
           .from('tours')
@@ -106,12 +106,15 @@ function EditorPage() {
       const blankTour = initTour('My Virtual Tour', 'An immersive 360 experience')
       loadTour(blankTour)
       setDbLoaded(true)
+    } else if (!dbLoaded) {
+      setDbLoaded(true)
     }
   }, [tourDbId, dbLoaded, supabase, tour])
 
   // Auto-save to Supabase (debounced) -- persists any remaining blob URLs first
   const saveTour = useCallback(
     async (tourData: Tour) => {
+      if (!supabase) return
       setSaving(true)
       try {
         const {

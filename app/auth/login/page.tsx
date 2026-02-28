@@ -19,6 +19,10 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!supabase) {
+      setError('Supabase is not configured. Please set up environment variables.')
+      return
+    }
     setLoading(true)
     setError(null)
 

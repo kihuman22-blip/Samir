@@ -12,20 +12,30 @@ type ProgressCallback = (progress: ExportProgress) => void
 
 /**
  * Downloads an image and returns it as a blob.
- * Returns null if the download fails (CORS, network, etc.)
+ * Handles blob URLs, data URLs, and remote URLs.
+ * Returns null if the download fails.
  */
 async function downloadImage(url: string): Promise<Blob | null> {
   try {
+    // Blob URLs and data URLs can be fetched directly without CORS issues
+    if (url.startsWith('blob:') || url.startsWith('data:')) {
+      const response = await fetch(url)
+      if (!response.ok) return null
+      return await response.blob()
+    }
+
+    // Remote URLs — try with cors first
     const response = await fetch(url, { mode: 'cors' })
     if (!response.ok) return null
     return await response.blob()
   } catch {
-    // Try with no-cors as fallback — will give opaque response
+    // Fallback without explicit mode
     try {
       const response = await fetch(url)
       if (!response.ok) return null
       return await response.blob()
     } catch {
+      console.warn('[tour-export] Failed to download image:', url)
       return null
     }
   }

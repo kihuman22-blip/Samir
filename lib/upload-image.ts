@@ -11,6 +11,10 @@ export async function uploadTourImage(
   folder: 'scenes' | 'hotspots' = 'scenes'
 ): Promise<string> {
   const supabase = createClient()
+  if (!supabase) {
+    console.warn('[v0] Supabase not configured, using local object URL')
+    return URL.createObjectURL(file)
+  }
   const {
     data: { user },
   } = await supabase.auth.getUser()

@@ -58,6 +58,7 @@ export default function DashboardPage() {
   const supabase = createClient()
 
   const fetchTours = useCallback(async () => {
+    if (!supabase) { setLoading(false); return }
     const { data } = await supabase
       .from('tours')
       .select('*')
@@ -67,6 +68,10 @@ export default function DashboardPage() {
   }, [supabase])
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
     const getUser = async () => {
       const {
         data: { user },
@@ -82,6 +87,7 @@ export default function DashboardPage() {
   }, [supabase, router, fetchTours])
 
   const handleSignOut = async () => {
+    if (!supabase) return
     await supabase.auth.signOut()
     router.push('/')
   }
@@ -95,6 +101,7 @@ export default function DashboardPage() {
   }
 
   const handleDuplicateTour = async (tour: TourRow) => {
+    if (!supabase) return
     const { error } = await supabase.from('tours').insert({
       user_id: user?.id,
       name: `${tour.name} (copy)`,
@@ -108,7 +115,7 @@ export default function DashboardPage() {
   }
 
   const handleDeleteTour = async () => {
-    if (!deleteId) return
+    if (!deleteId || !supabase) return
     await supabase.from('tours').delete().eq('id', deleteId)
     setDeleteId(null)
     fetchTours()

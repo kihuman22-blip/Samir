@@ -257,7 +257,7 @@ function ViewerPage() {
 
   useEffect(() => {
     if (dbLoaded) return
-    if (tourDbId) {
+    if (tourDbId && supabase) {
       const loadFromDb = async () => {
         const { data } = await supabase
           .from('tours')
@@ -273,6 +273,8 @@ function ViewerPage() {
     } else if (!tour) {
       const demoTour = createDemoTour()
       loadTour(demoTour)
+      setDbLoaded(true)
+    } else {
       setDbLoaded(true)
     }
   }, [tourDbId, dbLoaded, supabase, tour])

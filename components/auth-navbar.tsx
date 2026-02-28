@@ -22,6 +22,10 @@ export default function AuthNavbar() {
   const supabase = createClient()
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
     const getUser = async () => {
       const {
         data: { user },
@@ -33,6 +37,7 @@ export default function AuthNavbar() {
   }, [supabase])
 
   const handleSignOut = async () => {
+    if (!supabase) return
     await supabase.auth.signOut()
     setUser(null)
     router.refresh()
