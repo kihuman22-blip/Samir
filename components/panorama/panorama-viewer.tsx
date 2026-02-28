@@ -61,7 +61,8 @@ export default function PanoramaViewer({
     hotspotStartYaw: number
     hotspotStartPitch: number
     pointerId: number
-  }>({ mode: 'none', startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, hotspotId: null, hotspotStartYaw: 0, hotspotStartPitch: 0, pointerId: -1 })
+    startTarget: HTMLElement | null
+  }>({ mode: 'none', startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, hotspotId: null, hotspotStartYaw: 0, hotspotStartPitch: 0, pointerId: -1, startTarget: null })
   
   // Reusable raycaster for performance
   const raycasterRef = useRef(new THREE.Raycaster())
